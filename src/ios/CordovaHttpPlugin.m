@@ -6,6 +6,7 @@
 #import "TextRequestSerializer.h"
 #import "AFHTTPSessionManager.h"
 #import "SDNetworkActivityIndicator.h"
+#import "CordovaNetworkManager.h"
 
 @interface CordovaHttpPlugin()
 
@@ -243,6 +244,9 @@
     [self setRedirect:followRedirect forManager:manager];
     [self setResponseSerializer:responseType forManager:manager];
 
+    CordovaNetworkManager *networkManager = [CordovaNetworkManager sharedManager];
+    __block NSNumber * taskIdentifier;
+
     CordovaHttpPlugin* __weak weakSelf = self;
     [[SDNetworkActivityIndicator sharedActivityIndicator] startActivity];
     
@@ -280,6 +284,7 @@
         };
         
         void (^onSuccess)(NSURLSessionTask *, id) = ^(NSURLSessionTask *task, id responseObject) {
+            [networkManager.requestDictionary removeObjectForKey:taskIdentifier];
             NSMutableDictionary *dictionary = [NSMutableDictionary dictionary];
             CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:dictionary];
             [pluginResult setKeepCallback:[NSNumber numberWithBool:NO]];
@@ -289,6 +294,7 @@
         };
         
         void (^onFailure)(NSURLSessionTask *, NSError *) = ^(NSURLSessionTask *task, NSError *error) {
+            [networkManager.requestDictionary removeObjectForKey:taskIdentifier];
             NSMutableDictionary *dictionary = [NSMutableDictionary dictionary];
             [self handleError:dictionary withResponse:(NSHTTPURLResponse*)task.response error:error];
             
@@ -317,19 +323,17 @@
             [weakSelf.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
         };
 
-        if ([serializerName isEqualToString:@"multipart"]) {
-            // NO IDEA HOW TO HANDLE PROGRESS HERE...
-            [manager uploadTaskWithHTTPMethod:method URLString:url parameters:nil constructingBodyWithBlock:constructBody progress:nil success:onSuccess failure:onFailure];
-        } else {
-            NSURLSessionDataTask *task = [manager dataTaskWithHTTPMethod:method URLString:url parameters:data uploadProgress:uploadProgress downloadProgress:downloadProgress success:onSuccess failure:onFailure];
-            [task resume];
-        }
+        NSURLSessionDataTask *task = [manager dataTaskWithHTTPMethod:method URLString:url parameters:data uploadProgress:uploadProgress downloadProgress:downloadProgress success:onSuccess failure:onFailure];
+        taskIdentifier = [NSNumber numberWithInteger:task.taskIdentifier];
+        [networkManager.requestDictionary setObject:task forKey:taskIdentifier];
+        [task resume];
     }
     @catch (NSException *exception) {
         [[SDNetworkActivityIndicator sharedActivityIndicator] stopActivity];
         [self handleException:exception withCommand:command];
     }
 }
+
 
 - (void)setServerTrustMode:(CDVInvokedUrlCommand*)command {
     NSString *certMode = [command.arguments objectAtIndex:0];
@@ -395,6 +399,16 @@
     }
 
     [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
+}
+
+- (void)cancelAllRequests:(CDVInvokedUrlCommand*)command {
+    CordovaHttpPlugin* __weak weakSelf = self;
+    CordovaNetworkManager *manager = [CordovaNetworkManager sharedManager]; //manager should be instance which you are using across application
+    for (NSURLSessionDataTask *task in manager.requestDictionary.allValues)
+        {
+            [task cancel];
+        }
+    [weakSelf.commandDelegate sendPluginResult:nil callbackId:command.callbackId];
 }
 
 - (void)post:(CDVInvokedUrlCommand*)command {

@@ -17,6 +17,7 @@ module.exports = function init(exec, cookieHandler, urlUtil, helpers, globalConf
     setServerTrustMode: setServerTrustMode,
     setClientAuthMode: setClientAuthMode,
     sendRequest: sendRequest,
+    cancel:cancel,
     post: post,
     put: put,
     patch: patch,
@@ -130,6 +131,10 @@ module.exports = function init(exec, cookieHandler, urlUtil, helpers, globalConf
     helpers.handleMissingCallbacks(success, failure);
 
     return exec(success, failure, 'CordovaHttpPlugin', 'setClientAuthMode', [mode, options.alias, options.rawPkcs, options.pkcsPassword]);
+  }
+
+  function cancel(success, failure){
+        exec(success, failure, 'CordovaHttpPlugin', 'cancelAllRequests');
   }
 
   function sendRequest(url, options, success, failure, progress) {
