@@ -318,6 +318,21 @@ didCompleteWithError:(NSError *)error
           dataTask:(__unused NSURLSessionDataTask *)dataTask
     didReceiveData:(NSData *)data
 {
+    NSHTTPURLResponse *URLTask = (NSHTTPURLResponse*)dataTask.response;
+    NSString *contentLengthString = URLTask.allHeaderFields[@"Content-Length"];
+    if(contentLengthString != nil){
+        @try
+        {
+            int64_t totalUnitCount = atoll([contentLengthString UTF8String]);
+            self.downloadProgress.totalUnitCount = totalUnitCount;
+            if (self.downloadProgressBlock) {
+                self.downloadProgressBlock(self.downloadProgress);
+            }
+        }
+        @catch(id anException) {
+            //Do nothing, download progress cannot be determined.
+        }
+    }
     [self.mutableData appendData:data];
 }
 
